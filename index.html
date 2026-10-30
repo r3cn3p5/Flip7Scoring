@@ -272,7 +272,7 @@ function load(){
 }
 function save(){ localStorage.setItem(KEY, JSON.stringify(state)); }
 
-const total = p => p.scores.reduce((s,r)=>s+r.pts,0);
+const total = p => p.scores.reduce((s,r)=>s+r.pts,0) + (p.adj || 0);
 
 /* ---------- rendering ---------- */
 function render(bumped){
@@ -313,7 +313,8 @@ function render(bumped){
         <button type="button" class="chip venge" data-venge="${p.id}" title="Vengeance Flip 7 penalty">😈 −15</button>
         <button type="button" class="chip bust" data-bust="${p.id}">Bust</button>
         <span class="spacer"></span>
-        <button type="button" class="kill" data-kill="${p.id}" aria-label="Remove ${esc(p.name)}">✕</button>
+        <button type="button" class="kill" data-edit="${p.id}" aria-label="Edit total for ${esc(p.name)}" title="Edit total">✎</button>
+        <button type="button" class="kill" data-kill="${p.id}" aria-label="Remove ${esc(p.name)}" title="Remove player">✕</button>
       </div>`;
     box.appendChild(card);
   });
@@ -348,6 +349,9 @@ function renderHistory(){
       return s.bust ? '<td class="bustcell">💥 0</td>' : '<td>'+(s.venge?'😈 ':'')+s.pts+'</td>';
     }).join('') + '</tr>';
   }
+  if (ps.some(p=>p.adj)){
+    html += '<tr><td>✎</td>' + ps.map(p=>'<td>'+(p.adj ? (p.adj>0?'+':'')+p.adj : '–')+'</td>').join('') + '</tr>';
+  }
   html += '</tbody><tfoot><tr><td>Σ</td>' + ps.map(p=>'<td>'+total(p)+'</td>').join('') + '</tr></tfoot>';
   tb.innerHTML = html;
 }
@@ -375,6 +379,7 @@ $('players').addEventListener('click', e=>{
   const venge = e.target.closest('[data-venge]');
   const bust = e.target.closest('[data-bust]');
   const kill = e.target.closest('[data-kill]');
+  const edit = e.target.closest('[data-edit]');
   if (seven){
     const inp = inputFor(seven.dataset.seven);
     inp.value = (parseInt(inp.value,10)||0) + 15;
@@ -391,6 +396,17 @@ $('players').addEventListener('click', e=>{
     inp.dataset.bust = inp.dataset.bust === '1' ? '' : '1';
     inp.disabled = inp.dataset.bust === '1';
     bust.textContent = inp.disabled ? 'Busted 💥' : 'Bust';
+  }
+  if (edit){
+    const p = state.players.find(x=>x.id===edit.dataset.edit);
+    if (!p) return;
+    const cur = total(p);
+    const raw = prompt('New total for ' + p.name + ':', cur);
+    if (raw === null) return;
+    const val = parseInt(raw, 10);
+    if (isNaN(val)){ alert('Please enter a whole number.'); return; }
+    p.adj = (p.adj || 0) + (val - cur);
+    render(val !== cur ? p.id : null);
   }
   if (kill){
     const p = state.players.find(x=>x.id===kill.dataset.kill);
@@ -431,7 +447,7 @@ $('newBtn').addEventListener('click', ()=>{
   if (!state.players.length && !state.rounds) return;
   const keep = confirm('Start a new game?\n\nOK = keep players, reset scores.\nCancel = do nothing.');
   if (!keep) return;
-  state.players.forEach(p=>p.scores=[]);
+  state.players.forEach(p=>{p.scores=[]; p.adj=0;});
   state.rounds = 0;
   render();
 });
